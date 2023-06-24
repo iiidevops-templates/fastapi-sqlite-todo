@@ -120,7 +120,7 @@ stages:
         imagePullSecrets[0].name: harbor-local
         pipeline.sequence: ${CICD_EXECUTION_SEQUENCE}
         web.imageTag: ${CICD_GIT_REPO_NAME}/${CICD_GIT_BRANCH}:${CICD_GIT_COMMIT}
-        web.port: 5000
+        web.port: 8000
         kube.ingress.base_domain: ingress-dev3.iiidevops.org
         kube.ingress.proxy_body_size: 1m
         volumeMounts.nfs.enabled: false
