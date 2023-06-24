@@ -1,54 +1,60 @@
-from flask import Flask
-# 資料庫連線管理
-from flask_sqlalchemy import SQLAlchemy
-# template資料夾內的網頁來顯示
-from flask import Flask, render_template, request, redirect, url_for
+from fastapi import FastAPI, Depends, Request, Form, status
 
-app = Flask(__name__)
+from starlette.responses import RedirectResponse
+from starlette.templating import Jinja2Templates
 
-# sqlite資料庫設定
-# /// = 相對路徑relative path, //// = 絕對路徑absolute path
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+from sqlalchemy.orm import Session
 
-class Todo(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100))
-    complete = db.Column(db.Boolean)
+import models
+from database import SessionLocal, engine
 
-## 首頁畫面(Semantic UI漂亮的網頁)
-@app.route("/")
-def home():
-    todo_list = Todo.query.all()
-    return render_template("base.html", todo_list=todo_list)
+models.Base.metadata.create_all(bind=engine)
 
-## 新增Todo事項 
-@app.route("/add", methods=["POST"])
-def add():
-    title = request.form.get("title")
-    new_todo = Todo(title=title, complete=False)
-    db.session.add(new_todo)
-    db.session.commit()
-    return redirect(url_for("home"))
+templates = Jinja2Templates(directory="templates")
 
-## 更新Todo事項
-@app.route("/update/<int:todo_id>")
-def update(todo_id):
-    todo = Todo.query.filter_by(id=todo_id).first()
+app = FastAPI()
+
+
+# Dependency
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@app.get("/")
+def home(request: Request, db: Session = Depends(get_db)):
+    todos = db.query(models.Todo).all()
+    return templates.TemplateResponse("base.html",
+                                      {"request": request, "todo_list": todos})
+
+@app.post("/add")
+def add(request: Request, title: str = Form(...), db: Session = Depends(get_db)):
+    new_todo = models.Todo(title=title)
+    db.add(new_todo)
+    db.commit()
+
+    url = app.url_path_for("home")
+    return RedirectResponse(url=url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/update/{todo_id}")
+def update(request: Request, todo_id: int, db: Session = Depends(get_db)):
+    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
     todo.complete = not todo.complete
-    db.session.commit()
-    return redirect(url_for("home"))
+    db.commit()
 
-## 刪除Todo事項
-@app.route("/delete/<int:todo_id>")
-def delete(todo_id):
-    todo = Todo.query.filter_by(id=todo_id).first()
-    db.session.delete(todo)
-    db.session.commit()
-    return redirect(url_for("home"))
-    
-if __name__ == "__main__":
-    # 建立資料庫
-    db.create_all()
-    app.run(debug=True, host="0.0.0.0")
+    url = app.url_path_for("home")
+    return RedirectResponse(url=url, status_code=status.HTTP_302_FOUND)
+
+
+@app.get("/delete/{todo_id}")
+def delete(request: Request, todo_id: int, db: Session = Depends(get_db)):
+    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
+    db.delete(todo)
+    db.commit()
+
+    url = app.url_path_for("home")
+    return RedirectResponse(url=url, status_code=status.HTTP_302_FOUND)
