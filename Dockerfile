@@ -1,6 +1,7 @@
 FROM dockerhub/library/python:3.9
 
-RUN pip install fastapi uvicorn python-multipart sqlalchemy jinja2 --use-feature=fast-deps
+#RUN pip install fastapi uvicorn
+RUN pip install python-multipart sqlalchemy jinja2
 
 COPY app /app
 WORKDIR /app
